@@ -27,10 +27,7 @@ func (recipe RecipeInt32) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seria
 	if len(b) != 4 {
 		return nil, fmt.Errorf("invalid int32 byte length: %d", len(b))
 	}
-	value := int32(0)
-	for _, v := range b {
-		value = (value << 8) | int32(v)
-	}
+	value := int32(binary.LittleEndian.Uint32(b))
 	return SerializableInt32{value}, nil
 }
 
@@ -53,10 +50,7 @@ func (recipe RecipeInt64) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seria
 	if len(b) != 8 {
 		return nil, fmt.Errorf("invalid int64 byte length: %d", len(b))
 	}
-	value := int64(0)
-	for _, v := range b {
-		value = (value << 8) | int64(v)
-	}
+	value := int64(binary.LittleEndian.Uint64(b))
 	return SerializableInt64{value}, nil
 }
 
@@ -79,10 +73,7 @@ func (recipe RecipeInt16) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seria
 	if len(b) != 2 {
 		return nil, fmt.Errorf("invalid int16 byte length: %d", len(b))
 	}
-	value := int16(0)
-	for _, v := range b {
-		value = (value << 8) | int16(v)
-	}
+	value := int16(binary.LittleEndian.Uint16(b))
 	return SerializableInt16{value}, nil
 }
 
@@ -125,10 +116,7 @@ func (recipe RecipeUInt64) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seri
 	if len(b) != 8 {
 		return nil, fmt.Errorf("invalid uint64 byte length: %d", len(b))
 	}
-	value := uint64(0)
-	for _, v := range b {
-		value = (value << 8) | uint64(v)
-	}
+	value := binary.LittleEndian.Uint64(b)
 	return SerializableUInt64{value}, nil
 }
 
@@ -151,10 +139,7 @@ func (recipe RecipeUInt32) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seri
 	if len(b) != 4 {
 		return nil, fmt.Errorf("invalid uint32 byte length: %d", len(b))
 	}
-	value := uint32(0)
-	for _, v := range b {
-		value = (value << 8) | uint32(v)
-	}
+	value := binary.LittleEndian.Uint32(b)
 	return SerializableUInt32{value}, nil
 }
 
@@ -177,10 +162,7 @@ func (recipe RecipeUInt16) Deserialize(r *ungo.Registry[Recipe], b []byte) (Seri
 	if len(b) != 2 {
 		return nil, fmt.Errorf("invalid uint16 byte length: %d", len(b))
 	}
-	value := uint16(0)
-	for _, v := range b {
-		value = (value << 8) | uint16(v)
-	}
+	value := binary.LittleEndian.Uint16(b)
 	return SerializableUInt16{value}, nil
 }
 
@@ -292,18 +274,9 @@ func (recipe RecipeList) TypeID() string {
 
 func (recipe RecipeList) Serialize(r *ungo.Registry[Recipe], s Serializable) ([]byte, error) {
 	list := s.(SerializableList)
-	b := make([]byte, 0, 8*len(list.Value))
+	var b []byte
 	for _, item := range list.Value {
-		var itemBytes []byte
-		var err error
-		var hasRecipe bool = false
-		r.Get(item.TypeID()).IfPresent(func(recipe Recipe) {
-			itemBytes, err = recipe.Serialize(r, item)
-			hasRecipe = true
-		})
-		if !hasRecipe {
-			return nil, fmt.Errorf("no recipe found for type: %s", item.TypeID())
-		}
+		itemBytes, err := Encode(item)
 		if err != nil {
 			return nil, err
 		}
@@ -313,23 +286,15 @@ func (recipe RecipeList) Serialize(r *ungo.Registry[Recipe], s Serializable) ([]
 }
 
 func (recipe RecipeList) Deserialize(r *ungo.Registry[Recipe], b []byte) (Serializable, error) {
-	list := make([]Serializable, 0, len(b)/8)
-	for i := 0; i < len(b); i += 8 {
-		itemBytes := b[i : i+8]
-		var item Serializable
-		var err error
-		var hasRecipe bool = false
-		r.Get("float64").IfPresent(func(recipe Recipe) {
-			item, err = recipe.Deserialize(r, itemBytes)
-			hasRecipe = true
-		})
-		if !hasRecipe {
-			return nil, fmt.Errorf("no recipe found for type: float64")
-		}
+	var list []Serializable
+	offset := 0
+	for offset < len(b) {
+		item, n, err := DecodeNext(b[offset:])
 		if err != nil {
 			return nil, err
 		}
 		list = append(list, item)
+		offset += n
 	}
 	return SerializableList{list}, nil
 }
@@ -341,69 +306,40 @@ func (dict RecipeDict) TypeID() string {
 }
 
 func (dict RecipeDict) Serialize(r *ungo.Registry[Recipe], s Serializable) ([]byte, error) {
-	dict_value := s.(SerializableDict)
-	b := make([]byte, 0, 8*len(dict_value.Value))
-	for key, value := range dict_value.Value {
-		var keyBytes, valueBytes []byte
-		var err error
-		var hasKeyRecipe, hasValueRecipe bool = false, false
-		r.Get(key.TypeID()).IfPresent(func(recipe Recipe) {
-			keyBytes, err = recipe.Serialize(r, key)
-			hasKeyRecipe = true
-		})
-		r.Get(value.TypeID()).IfPresent(func(recipe Recipe) {
-			valueBytes, err = recipe.Serialize(r, value)
-			hasValueRecipe = true
-		})
+	dictValue := s.(SerializableDict)
+	var b []byte
+	for key, value := range dictValue.Value {
+		keyBytes, err := Encode(key)
 		if err != nil {
 			return nil, err
 		}
-		if !hasKeyRecipe {
-			return nil, fmt.Errorf("no recipe found for type: %s", key.TypeID())
-		}
-		if !hasValueRecipe {
-			return nil, fmt.Errorf("no recipe found for type: %s", value.TypeID())
+		valBytes, err := Encode(value)
+		if err != nil {
+			return nil, err
 		}
 		b = append(b, keyBytes...)
-		b = append(b, valueBytes...)
+		b = append(b, valBytes...)
 	}
 	return b, nil
 }
 
 func (dict RecipeDict) Deserialize(r *ungo.Registry[Recipe], b []byte) (Serializable, error) {
 	dictValue := make(map[Serializable]Serializable)
-	for {
-		keyBytes := b[:8]
-		valueBytes := b[8:]
-		if len(keyBytes) == 0 {
-			break
+	offset := 0
+	for offset < len(b) {
+		key, nKey, err := DecodeNext(b[offset:])
+		if err != nil {
+			return nil, err
 		}
-		var hasKeyRecipe bool
-		var hasValueRecipe bool
-		var key, value Serializable
-		var keyErr, valueErr error
-		r.Get(string(keyBytes)).IfPresent(func(key_recipe Recipe) {
-			key, keyErr = key_recipe.Deserialize(r, keyBytes)
-			hasKeyRecipe = true
-		})
-		r.Get(string(valueBytes)).IfPresent(func(value_recipe Recipe) {
-			value, valueErr = value_recipe.Deserialize(r, valueBytes)
-			hasValueRecipe = true
-		})
-		if keyErr != nil {
-			return nil, keyErr
+		offset += nKey
+
+		val, nVal, err := DecodeNext(b[offset:])
+		if err != nil {
+			return nil, err
 		}
-		if valueErr != nil {
-			return nil, valueErr
-		}
-		if !hasKeyRecipe {
-			return nil, fmt.Errorf("no recipe found for type: %s", string(keyBytes))
-		}
-		if !hasValueRecipe {
-			return nil, fmt.Errorf("no recipe found for type: %s", string(valueBytes))
-		}
-		b = b[16:]
-		dictValue[key] = value
+		offset += nVal
+
+		dictValue[key] = val
 	}
 	return SerializableDict{dictValue}, nil
 }

@@ -156,17 +156,16 @@ func (c customTypeRecipe) Deserialize(reg *ungo.Registry[Recipe], data []byte) (
 	if err := json.Unmarshal(data, &val); err != nil {
 		return nil, err
 	}
-	return customTypeRecipe{Value: val}, nil
+	return val, nil
 }
 
 func TestEncodeCustomType(t *testing.T) {
-	RegisterRecipe("custom_type_registry", ungo.NewLazy(func() Recipe {
+	RegisterRecipe("customType", ungo.NewLazy(func() Recipe {
 		return customTypeRecipe{}
 	}))
 
-	val := customType{Name: "", Age: 0}
-	recipe := customTypeRecipe{Value: val}
-	encoded, err := Encode(recipe)
+	val := customType{Name: "John Doe", Age: 63}
+	encoded, err := Encode(val)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,8 +188,6 @@ func TestEncodeCustomType(t *testing.T) {
 	}
 }
 
-// custom type inside custom type
-
 type customTypeInside struct {
 	customTypeData       customType
 	customTypeAttachment string
@@ -210,25 +207,11 @@ func (c customTypeInsideRecipe) TypeID() string {
 
 func (c customTypeInsideRecipe) Serialize(reg *ungo.Registry[Recipe], s Serializable) ([]byte, error) {
 	val := s.(customTypeInside)
-	// this should have all of the header as well as the attachment
 	encoded, err := Encode(val.customTypeData)
 	if err != nil {
 		return nil, err
 	}
 	return append(encoded, []byte(val.customTypeAttachment)...), nil
-}
-
-func (c customTypeInsideRecipe) Deserialize(reg *ungo.Registry[Recipe], data []byte) (Serializable, error) {
-	// first fetch header of custom Type
-	customDataSizeBytes := data[len("customType\000\001\000") : len("customType\000\001\000")+4]
-	customDataSize := int(customDataSizeBytes[0]) | int(customDataSizeBytes[1])<<8 | int(customDataSizeBytes[2])<<16 | int(customDataSizeBytes[3])<<24
-	customData := data[len("customType\000\001\000")+4 : len("customType\000\001\000")+4+customDataSize]
-	attachment := string(data[len("customType\000\001\000")+4+customDataSize:])
-	decoded, err := Decode(customData)
-	if err != nil {
-		return nil, err
-	}
-	return customTypeInside{customTypeData: decoded.(customType), customTypeAttachment: attachment}, nil
 }
 
 func TestCustomTypeInsideRecipe(t *testing.T) {
@@ -259,4 +242,16 @@ func TestCustomTypeInsideRecipe(t *testing.T) {
 	if serialized_object.(customTypeInside).customTypeAttachment != "attached data" {
 		t.Fatal("Attachment mismatch")
 	}
+}
+
+func (c customTypeInsideRecipe) Deserialize(reg *ungo.Registry[Recipe], data []byte) (Serializable, error) {
+	customDataSizeBytes := data[len("customType\000\001\000") : len("customType\000\001\000")+4]
+	customDataSize := int(customDataSizeBytes[0]) | int(customDataSizeBytes[1])<<8 | int(customDataSizeBytes[2])<<16 | int(customDataSizeBytes[3])<<24
+	customData := data[:len("customType\000\001\000")+4+customDataSize]
+	attachment := string(data[len("customType\000\001\000")+4+customDataSize:])
+	decoded, err := Decode(customData)
+	if err != nil {
+		return nil, err
+	}
+	return customTypeInside{customTypeData: decoded.(customType), customTypeAttachment: attachment}, nil
 }

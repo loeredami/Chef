@@ -10,7 +10,6 @@ import (
 var recipeRegistry *ungo.Registry[Recipe] = ungo.NewRegistry[Recipe](1024)
 
 func init() {
-	// register methods for default go types
 	recipeRegistry.Register("int32", ungo.NewLazy(func() Recipe {
 		return RecipeInt32{}
 	}))
@@ -78,44 +77,61 @@ func Encode(s Serializable) ([]byte, error) {
 	if !wasPresent {
 		return nil, fmt.Errorf("no recipe found for type %s", s.TypeID())
 	}
+	if err != nil {
+		return nil, err
+	}
 	SIZE := len(result)
-	binary.BigEndian.PutUint32(encodedSize, uint32(SIZE))
+	binary.LittleEndian.PutUint32(encodedSize, uint32(SIZE))
 
 	FULL_HEADER := append(type_ID_HEADER, encodedSize...)
-	return append(FULL_HEADER, result...), err
+	return append(FULL_HEADER, result...), nil
 }
 
-func Decode(data []byte) (Serializable, error) {
-	var wasPresent bool = false
-	var result Serializable
+func DecodeNext(data []byte) (Serializable, int, error) {
 	var typeIDB []byte
-	var size uint32
-
-	for i := 0; i < len(data)-3; i++ {
+	var delimiterIdx = -1
+	for i := 0; i <= len(data)-3; i++ {
 		if data[i] == 0 && data[i+1] == 1 && data[i+2] == 0 {
 			typeIDB = data[:i]
+			delimiterIdx = i
 			break
 		}
 	}
-	if typeIDB == nil {
-		return nil, fmt.Errorf("no type ID header found")
+	if delimiterIdx == -1 {
+		return nil, 0, fmt.Errorf("no type ID header found")
 	}
 	typeID := string(typeIDB)
 
-	sizeOffset := len(typeIDB) + 3
-	size = binary.BigEndian.Uint32(data[sizeOffset : sizeOffset+4])
+	sizeOffset := delimiterIdx + 3
+	if len(data) < sizeOffset+4 {
+		return nil, 0, fmt.Errorf("insufficient data for size header")
+	}
+	size := binary.LittleEndian.Uint32(data[sizeOffset : sizeOffset+4])
 
 	payloadStart := sizeOffset + 4
 	payloadEnd := payloadStart + int(size)
+	if len(data) < payloadEnd {
+		return nil, 0, fmt.Errorf("insufficient data for payload")
+	}
 
+	var result Serializable
 	var err error
+	var wasPresent bool = false
 
 	recipeRegistry.Get(typeID).IfPresent(func(r Recipe) {
 		result, err = r.Deserialize(recipeRegistry, data[payloadStart:payloadEnd])
 		wasPresent = true
 	})
 	if !wasPresent {
-		return nil, fmt.Errorf("no recipe found for type %s", typeID)
+		return nil, 0, fmt.Errorf("no recipe found for type %s", typeID)
 	}
-	return result, err
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, payloadEnd, nil
+}
+
+func Decode(data []byte) (Serializable, error) {
+	val, _, err := DecodeNext(data)
+	return val, err
 }
