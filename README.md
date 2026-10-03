@@ -1,10 +1,10 @@
 # Chef
 
-`chef` is a binary serialization and deserialization library for Go built on top of `ungo` registry types[cite: 5, 6].
+`chef` is a binary serialization and deserialization library for Go built on top of `ungo` registry types.
 
 ## Core Interfaces
 
-To make a type serializable, implement `Serializable`[cite: 4]:
+To make a type serializable, implement `Serializable`:
 
 ```go
 type Serializable interface {
@@ -12,7 +12,7 @@ type Serializable interface {
 }
 ```
 
-To define custom serialization logic, implement `Recipe`[cite: 5]:
+To define custom serialization logic, implement `Recipe`:
 
 ```go
 type Recipe interface {
@@ -24,12 +24,12 @@ type Recipe interface {
 
 ## Built-In Types
 
-`chef` provides default serializables and recipes for standard Go types out of the box[cite: 1, 2, 6]:
-- **Signed Integers**: `SerializableInt8`, `SerializableInt16`, `SerializableInt32`, `SerializableInt64`[cite: 1]
-- **Unsigned Integers**: `SerializableUInt8`, `SerializableUInt16`, `SerializableUInt32`, `SerializableUInt64`[cite: 1]
-- **Floats & Bools**: `SerializableFloat32`, `SerializableFloat64`, `SerializableBool`[cite: 1]
-- **Strings**: `SerializableString`[cite: 1]
-- **Containers**: `SerializableList` (`[]Serializable`), `SerializableDict` (`map[Serializable]Serializable`)[cite: 1]
+`chef` provides default serializables and recipes for standard Go types out of the box:
+- **Signed Integers**: `SerializableInt8`, `SerializableInt16`, `SerializableInt32`, `SerializableInt64`
+- **Unsigned Integers**: `SerializableUInt8`, `SerializableUInt16`, `SerializableUInt32`, `SerializableUInt64`
+- **Floats & Bools**: `SerializableFloat32`, `SerializableFloat64`, `SerializableBool`
+- **Strings**: `SerializableString`
+- **Containers**: `SerializableList` (`[]Serializable`), `SerializableDict` (`map[Serializable]Serializable`)
 
 ## Usage Example
 
@@ -70,7 +70,7 @@ func main() {
 
 ### Registering Custom Recipes
 
-Register custom recipes using `chef.RegisterRecipe` with `ungo.NewLazy`[cite: 6]:
+Register custom recipes using `chef.RegisterRecipe` with `ungo.NewLazy`:
 
 ```go
 package main
