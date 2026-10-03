@@ -42,7 +42,7 @@ import (
 	"fmt"
 	"log"
 
-	"[github.com/loeredami/chef](https://github.com/loeredami/chef)"
+	"github.com/loeredami/chef"
 )
 
 func main() {
@@ -79,8 +79,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"[github.com/loeredami/chef](https://github.com/loeredami/chef)"
-	"[github.com/loeredami/ungo](https://github.com/loeredami/ungo)"
+	"github.com/loeredami/chef"
+	"github.com/loeredami/ungo"
 )
 
 type CustomUser struct {
