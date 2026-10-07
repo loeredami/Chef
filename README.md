@@ -1,5 +1,7 @@
 # Chef
 
+#- parts of the documentation was summarized using AI, but I did fly over it, to verify it's accuracy. 
+
 `chef` is a binary serialization and deserialization library for Go built on top of `ungo` registry types.
 
 ## Core Interfaces
